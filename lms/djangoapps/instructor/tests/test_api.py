@@ -4,6 +4,8 @@ Unit tests for instructor.api methods.
 """
 import datetime
 import ddt
+import random
+import pytz
 import io
 import json
 import os
@@ -3326,6 +3328,15 @@ class TestCourseRegistrationCodes(ModuleStoreTestCase):
             coupon = Coupon(
                 code='test_code{0}'.format(i), description='test_description', course_id=self.course.id,
                 percentage_discount='{0}'.format(i), created_by=self.instructor, is_active=True
+            )
+            coupon.save()
+
+        #now create coupons with the expiration dates
+        for i in range(5):
+            coupon = Coupon(
+                code='coupon{0}'.format(i), description='test_description', course_id=self.course.id,
+                percentage_discount='{0}'.format(i), created_by=self.instructor, is_active=True,
+                expiration_date=datetime.datetime.now(pytz.UTC) + datetime.timedelta(days=2)
             )
             coupon.save()
 

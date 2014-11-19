@@ -4,8 +4,9 @@ Views for the course_mode module
 
 import decimal
 from django.core.urlresolvers import reverse
+from django.http import HttpResponseBadRequest, HttpResponse
+from django_future.csrf import ensure_csrf_cookie
 from django.conf import settings
-from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.views.generic.base import View
 from django.utils.translation import ugettext as _
@@ -16,6 +17,7 @@ from edxmako.shortcuts import render_to_response
 
 from course_modes.models import CourseMode
 from courseware.access import has_access
+from instructor.views.api import require_level  # pylint: disable=F0401
 from student.models import CourseEnrollment
 from opaque_keys.edx.locations import SlashSeparatedCourseKey
 from opaque_keys.edx.keys import CourseKey
@@ -226,3 +228,31 @@ class ChooseModeView(View):
             return 'honor'
         else:
             return None
+
+
+@ensure_csrf_cookie
+@require_level('staff')
+def add_mode_to_course(request, course_id):
+    """
+    Create the honor mode for the course_id
+    """
+    if request.method == 'GET':
+        return render_to_response("course_modes/add_course_mode.html", {'course_id': course_id})
+    if request.method == 'POST':
+        course_mode = request.POST.get('course_mode')
+        course_mode_display_name = request.POST.get('course_mode_display_name')
+        try:
+            course_mode_price = int(request.POST.get('course_mode_price'))
+        except ValueError:
+            return HttpResponseBadRequest('Enter the integer value for the price')
+        course_mode_currency = request.POST.get('course_mode_currency')
+
+        course_key = SlashSeparatedCourseKey.from_deprecated_string(course_id)
+        CourseMode.create_course_mode(
+            course_id=course_key,
+            min_price=course_mode_price,
+            mode_slug=course_mode,
+            mode_display_name=course_mode_display_name,
+            currency=course_mode_currency
+        )
+        return HttpResponse('success')

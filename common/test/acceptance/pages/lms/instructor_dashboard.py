@@ -5,6 +5,7 @@ Instructor (2) dashboard page.
 
 from bok_choy.page_object import PageObject
 from .course_page import CoursePage
+from .instructor_dashboard_paid_course_registrations import ECommercePage
 import os
 
 
@@ -25,6 +26,15 @@ class InstructorDashboardPage(CoursePage):
         membership_section = MembershipPage(self.browser)
         membership_section.wait_for_page()
         return membership_section
+
+    def select_ecommerce(self):
+        """
+        Selects the E-Commerce tab and returns an instance of the ECommercePage
+        """
+        self.q(css='a[data-section=e-commerce]').first.click()
+        ecommerce_section = ECommercePage(self.browser)
+        ecommerce_section.wait_for_page()
+        return ecommerce_section
 
     def select_data_download(self):
         """

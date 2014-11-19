@@ -10,6 +10,7 @@ from xmodule.modulestore.tests.django_utils import (
 )
 
 from xmodule.modulestore.tests.factories import CourseFactory
+from courseware.tests.factories import InstructorFactory  # pylint: disable=F0401
 from course_modes.tests.factories import CourseModeFactory
 from student.tests.factories import CourseEnrollmentFactory, UserFactory
 from student.models import CourseEnrollment
@@ -17,6 +18,8 @@ from student.models import CourseEnrollment
 
 # Since we don't need any XML course fixtures, use a modulestore configuration
 # that disables the XML modulestore.
+from util.testing import UrlResetMixin
+
 MODULESTORE_CONFIG = mixed_store_config(settings.COMMON_TEST_DATA_ROOT, {}, include_xml=False)
 
 
@@ -235,3 +238,55 @@ class CourseModeViewTest(ModuleStoreTestCase):
         response = self.client.post(choose_track_url, self.POST_PARAMS_FOR_COURSE_MODE['unsupported'])
 
         self.assertEqual(400, response.status_code)
+
+
+@override_settings(MODULESTORE=MODULESTORE_CONFIG)
+@unittest.skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in lms')
+class AddHonorModeToCourseTest(UrlResetMixin, ModuleStoreTestCase):
+    """
+    Unittests for course_modes.views.add_mode_to_course
+    """
+
+    def setUp(self):
+        super(AddHonorModeToCourseTest, self).setUp()
+        self.course = CourseFactory.create()
+        self.instructor = InstructorFactory(course_key=self.course.id)
+        self.client.login(username=self.instructor.username, password='test')
+        self.url = reverse('add_mode_to_course', kwargs={'course_id': self.course.id.to_deprecated_string()})
+
+    def test_add_mode_to_course(self):
+        """
+        test to add the honor mode for the course id
+        """
+        # get the course mode view
+        response = self.client.get(self.url)
+        self.assertEqual(200, response.status_code)
+
+        data = {
+            'course_mode': 'honor',
+            'course_mode_display_name': 'Honor Display',
+            'course_mode_price': '12',
+            'course_mode_currency': 'usd'
+        }
+        response = self.client.post(self.url, data)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('success', response.content)
+
+    def test_fail_add_mode_to_course(self):
+        """
+        test that fails to create the course mode honor
+        when not giving the proper course mode price
+        """
+        # get the course mode view
+        response = self.client.get(self.url)
+        self.assertEqual(200, response.status_code)
+
+        data = {
+            'course_mode': 'honor',
+            'course_mode_display_name': 'Honor Display',
+            'course_mode_price': '4wqe',
+            'course_mode_currency': 'usd'
+        }
+        response = self.client.post(self.url, data)
+        self.assertEqual(400, response.status_code)
+        self.assertEqual('Enter the integer value for the price', response.content)
