@@ -9,35 +9,40 @@ from rest_framework.test import APITestCase
 
 from courseware.tests.factories import UserFactory
 from xmodule.html_module import CourseInfoModule
+from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.tests.factories import CourseFactory
-from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.xml_importer import import_from_xml
 
+from ..tests import (
+    MobileCourseAPITestCase, MobileCourseAccessTestMixin, MobileEnrolledCourseAccessTestMixin, MobileAuthTestMixin
+)
 
-class TestCourseInfo(APITestCase):
+
+class TestCourseInfo(MobileCourseAPITestCase):
     """
-    Tests for /api/mobile/v0.5/course_info/...
+    Base test class for tests for /api/mobile/v0.5/course_info/...
     """
-    def setUp(self):
-        super(TestCourseInfo, self).setUp()
-        self.user = UserFactory.create()
-        self.course = CourseFactory.create(mobile_available=True)
-        self.client.login(username=self.user.username, password='test')
+    pass
 
-    def test_about(self):
-        url = reverse('course-about-detail', kwargs={'course_id': unicode(self.course.id)})
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue('overview' in response.data)  # pylint: disable=maybe-no-member
 
-    def test_updates(self):
-        url = reverse('course-updates-list', kwargs={'course_id': unicode(self.course.id)})
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, [])  # pylint: disable=maybe-no-member
+class TestAbout(TestCourseInfo, MobileAuthTestMixin, MobileCourseAccessTestMixin):
+    """
+    Tests for /api/mobile/v0.5/course_info/{course_id}/about
+    """
+    REVERSE_NAME = 'course-about-detail'
 
-    def test_about_static_rewrites(self):
+    def verify_success(self, response):
+        super(TestAbout, self).verify_success(response)
+        self.assertTrue('overview' in response.data)
+
+    def init_course_access(self, course_id=None):
+        # override this method since enrollment is not required for the About endpoint.
+        self.login()
+
+    def test_about_static_rewrite(self):
+        self.login()
+
         about_usage_key = self.course.id.make_usage_key('about', 'overview')
         about_module = modulestore().get_item(about_usage_key)
         underlying_about_html = about_module.data
@@ -45,16 +50,24 @@ class TestCourseInfo(APITestCase):
         # check that we start with relative static assets
         self.assertIn('\"/static/', underlying_about_html)
 
-        url = reverse('course-about-detail', kwargs={'course_id': unicode(self.course.id)})
-        response = self.client.get(url)
-        json_data = json.loads(response.content)
-        about_html = json_data['overview']
-
         # but shouldn't finish with any
-        self.assertEqual(response.status_code, 200)
-        self.assertNotIn('\"/static/', about_html)
+        response = self.get_response()
+        self.assertNotIn('\"/static/', response.data['overview'])
 
-    def test_updates_rewrite(self):
+
+class TestUpdates(TestCourseInfo, MobileAuthTestMixin, MobileEnrolledCourseAccessTestMixin):
+    """
+    Tests for /api/mobile/v0.5/course_info/{course_id}/updates
+    """
+    REVERSE_NAME = 'course-updates-list'
+
+    def verify_success(self, response):
+        super(TestUpdates, self).verify_success(response)
+        self.assertEqual(response.data, [])
+
+    def test_updates_static_rewrite(self):
+        self.login_and_enroll()
+
         updates_usage_key = self.course.id.make_usage_key('course_info', 'updates')
         course_updates = modulestore().create_item(
             self.user.id,
@@ -72,50 +85,51 @@ class TestCourseInfo(APITestCase):
         course_updates.items = [course_update_data]
         modulestore().update_item(course_updates, self.user.id)
 
-        url = reverse('course-updates-list', kwargs={'course_id': unicode(self.course.id)})
-        response = self.client.get(url)
+        response = self.get_response()
         content = response.data[0]["content"]  # pylint: disable=maybe-no-member
-        self.assertEqual(response.status_code, 200)
         self.assertNotIn("\"/static/", content)
 
         underlying_updates_module = modulestore().get_item(updates_usage_key)
         self.assertIn("\"/static/", underlying_updates_module.items[0]['content'])
 
 
-class TestHandoutInfo(ModuleStoreTestCase, APITestCase):
+class TestHandouts(TestCourseInfo, MobileAuthTestMixin, MobileEnrolledCourseAccessTestMixin):
     """
     Tests for /api/mobile/v0.5/course_info/{course_id}/handouts
     """
+    REVERSE_NAME = 'course-handouts-list'
+
     def setUp(self):
-        super(TestHandoutInfo, self).setUp()
-        self.user = UserFactory.create()
-        self.client.login(username=self.user.username, password='test')
+        super(TestHandouts, self).setUp()
+
+        # use toy course with handouts, and make it mobile_available
         course_items = import_from_xml(self.store, self.user.id, settings.COMMON_TEST_DATA_ROOT, ['toy'])
         self.course = course_items[0]
+        self.course.mobile_available = True
+        self.store.update_item(self.course, self.user.id)
+
+    def verify_success(self, response):
+        super(TestHandouts, self).verify_success(response)
+        self.assertIn('Sample', response.data['handouts_html'])
 
     def test_no_handouts(self):
-        empty_course = CourseFactory.create(mobile_available=True)
-        url = reverse('course-handouts-list', kwargs={'course_id': unicode(empty_course.id)})
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 404)
+        self.login_and_enroll()
 
-    def test_handout_exists(self):
-        url = reverse('course-handouts-list', kwargs={'course_id': unicode(self.course.id)})
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
+        # delete handouts in course
+        handouts_usage_key = self.course.id.make_usage_key('course_info', 'handouts')
+        with self.store.branch_setting(ModuleStoreEnum.Branch.draft_preferred, self.course.id):
+            self.store.delete_item(handouts_usage_key, self.user.id)
 
-    def test_handout_static_rewrites(self):
+        self.get_response(expected_response_code=404)
+
+    def test_handouts_static_rewrites(self):
+        self.login_and_enroll()
+
         # check that we start with relative static assets
         handouts_usage_key = self.course.id.make_usage_key('course_info', 'handouts')
         underlying_handouts = self.store.get_item(handouts_usage_key)
         self.assertIn('\'/static/', underlying_handouts.data)
 
-        url = reverse('course-handouts-list', kwargs={'course_id': unicode(self.course.id)})
-        response = self.client.get(url)
-
-        json_data = json.loads(response.content)
-        handouts_html = json_data['handouts_html']
-
         # but shouldn't finish with any
-        self.assertNotIn('\'/static/', handouts_html)
-        self.assertEqual(response.status_code, 200)
+        response = self.get_response()
+        self.assertNotIn('\'/static/', response.data['handouts_html'])
