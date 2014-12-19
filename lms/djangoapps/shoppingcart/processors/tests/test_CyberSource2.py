@@ -8,7 +8,7 @@ from django.conf import settings
 import ddt
 
 from student.tests.factories import UserFactory
-from shoppingcart.models import Order, OrderItem
+from shoppingcart.models import Order, OrderItem, PaidCourseRegistration
 from shoppingcart.processors.CyberSource2 import (
     processor_hash,
     process_postpay_callback,
@@ -21,6 +21,7 @@ from shoppingcart.processors.exceptions import (
     CCProcessorDataException,
     CCProcessorWrongAmountException
 )
+from xmodule.modulestore.tests.factories import CourseFactory
 
 
 @ddt.ddt
@@ -41,12 +42,14 @@ class CyberSource2Test(TestCase):
     def setUp(self):
         """ Create a user and an order. """
         self.user = UserFactory()
+        self.course = CourseFactory()
         self.order = Order.get_cart_for_user(self.user)
-        self.order_item = OrderItem.objects.create(
+        self.order_item = PaidCourseRegistration.objects.create(
             order=self.order,
             user=self.user,
             unit_cost=self.COST,
-            line_cost=self.COST
+            line_cost=self.COST,
+            course_id=self.course.id  # pylint: disable=no-member
         )
 
     def assert_dump_recorded(self, order):
@@ -120,7 +123,7 @@ class CyberSource2Test(TestCase):
     # We patch the purchased callback because
     # (a) we're using the OrderItem base class, which doesn't implement this method, and
     # (b) we want to verify that the method gets called on success.
-    @patch.object(OrderItem, 'purchased_callback')
+    @patch.object(PaidCourseRegistration, 'purchased_callback')
     def test_process_payment_success(self, purchased_callback):
         # Simulate a callback from CyberSource indicating that payment was successful
         params = self._signed_callback_params(self.order.id, self.COST, self.COST)

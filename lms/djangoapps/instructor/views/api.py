@@ -1167,6 +1167,8 @@ def generate_registration_codes(request, course_id):
         dashboard=reverse('dashboard')
     )
 
+    pdf_file = sale_invoice.generate_pdf_invoice(course, course_price, int(quantity), float(sale_price))
+
     from_address = microsite.get_value('email_from_address', settings.DEFAULT_FROM_EMAIL)
     context = {
         'invoice': sale_invoice,
@@ -1213,6 +1215,7 @@ def generate_registration_codes(request, course_id):
         email.to = [recipient]
         email.attach(u'RegistrationCodes.csv', csv_file.getvalue(), 'text/csv')
         email.attach(u'Invoice.txt', invoice_attachment, 'text/plain')
+        email.attach(u'Invoice.pdf', pdf_file.getvalue(), 'application/pdf')
         email.send()
 
     return registration_codes_csv("Registration_Codes.csv", registration_codes)
