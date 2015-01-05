@@ -128,9 +128,15 @@ class TestCourseStatusPATCH(CourseStatusAPITestCase, MobileAuthUserTestMixin, Mo
         response = self.get_response(data={"last_visited_module_id": unicode(other_unit.location)})
         self.assertEqual(response.data["last_visited_module_id"], unicode(other_unit.location))
 
-    def test_bad_module(self):
+    def test_invalid_module(self):
         self.login_and_enroll()
         response = self.get_response(data={"last_visited_module_id": "abc"}, expected_response_code=400)
+        self.assertEqual(response.data, errors.ERROR_INVALID_MODULE_ID)
+
+    def test_nonexistent_module(self):
+        self.login_and_enroll()
+        non_existent_key = self.course.id.make_usage_key('video', 'non-existent')
+        response = self.get_response(data={"last_visited_module_id": non_existent_key}, expected_response_code=400)
         self.assertEqual(response.data, errors.ERROR_INVALID_MODULE_ID)
 
     def test_no_timezone(self):

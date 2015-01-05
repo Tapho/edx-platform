@@ -22,6 +22,7 @@ from student.models import CourseEnrollment, User
 from xblock.fields import Scope
 from xblock.runtime import KeyValueStore
 from xmodule.modulestore.django import modulestore
+from xmodule.modulestore.exceptions import ItemNotFoundError
 
 from .serializers import CourseEnrollmentSerializer, UserSerializer
 from mobile_api import errors
@@ -115,10 +116,11 @@ class UserCourseStatus(views.APIView):
         """
         field_data_cache = FieldDataCache.cache_for_descriptor_descendents(
             course.id, request.user, course, depth=2)
-        module_descriptor = modulestore().get_item(module_key)
-        module = get_module_for_descriptor(request.user, request, module_descriptor, field_data_cache, course.id)
-        if not module:
+        try:
+            module_descriptor = modulestore().get_item(module_key)
+        except ItemNotFoundError:
             return Response(errors.ERROR_INVALID_MODULE_ID, status=400)
+        module = get_module_for_descriptor(request.user, request, module_descriptor, field_data_cache, course.id)
 
         if modification_date:
             key = KeyValueStore.Key(
