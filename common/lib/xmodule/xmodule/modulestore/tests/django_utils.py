@@ -11,7 +11,7 @@ from mock import patch
 
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TransactionTestCase
 from request_cache.middleware import RequestCache
 
 from xmodule.contentstore.django import _CONTENTSTORE
@@ -181,7 +181,7 @@ TEST_DATA_MONGO_MODULESTORE = mixed_store_config(mkdtemp(), {}, include_xml=Fals
 TEST_DATA_MOCK_MODULESTORE = mixed_store_config(mkdtemp(), {}, include_xml=False)
 
 
-class ModuleStoreTestCase(TestCase):
+class ModuleStoreTestCase(TransactionTestCase):
     """
     Subclass for any test case that uses a ModuleStore.
     Ensures that the ModuleStore is cleaned before/after each test.
@@ -302,7 +302,7 @@ class ModuleStoreTestCase(TestCase):
         # which will cause them to be re-created
         # the next time they are accessed.
         clear_existing_modulestores()
-        TestCase.setUpClass()
+        TransactionTestCase.setUpClass()
 
     def _pre_setup(self):
         """

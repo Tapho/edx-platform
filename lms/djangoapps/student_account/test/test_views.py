@@ -8,7 +8,7 @@ import json
 
 import mock
 import ddt
-from django.test import TestCase
+from django.test import TransactionTestCase
 from django.conf import settings
 from django.core.urlresolvers import reverse
 from django.core import mail
@@ -29,7 +29,7 @@ MODULESTORE_CONFIG = mixed_store_config(settings.COMMON_TEST_DATA_ROOT, {}, incl
 
 
 @ddt.ddt
-class StudentAccountUpdateTest(UrlResetMixin, TestCase):
+class StudentAccountUpdateTest(UrlResetMixin, TransactionTestCase):
     """ Tests for the student account views that update the user's account information. """
 
     USERNAME = u"heisenberg"

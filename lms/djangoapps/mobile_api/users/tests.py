@@ -6,7 +6,7 @@ import datetime
 import ddt
 import json
 
-from rest_framework.test import APITestCase
+from rest_framework.test import APITransactionTestCase
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.django import modulestore
@@ -20,7 +20,7 @@ from mobile_api.tests import ROLE_CASES
 
 
 @ddt.ddt
-class TestUserApi(ModuleStoreTestCase, APITestCase):
+class TestUserApi(ModuleStoreTestCase, APITransactionTestCase):
     """
     Test the user info API
     """

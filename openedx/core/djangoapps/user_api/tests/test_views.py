@@ -8,7 +8,7 @@ import re
 from django.conf import settings
 from django.core.urlresolvers import reverse
 from django.core import mail
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.test.utils import override_settings
 from unittest import SkipTest, skipUnless
 import ddt
@@ -35,7 +35,7 @@ ROLE_LIST_URI = "/user_api/v1/forum_roles/Moderator/users/"
 
 
 @override_settings(EDX_API_KEY=TEST_API_KEY)
-class ApiTestCase(TestCase):
+class ApiTestCase(TransactionTestCase):
 
     LIST_URI = USER_LIST_URI
 
