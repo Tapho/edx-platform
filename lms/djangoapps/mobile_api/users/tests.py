@@ -3,7 +3,6 @@ Tests for users API
 """
 
 import datetime
-import json
 from django.utils import timezone
 
 from xmodule.modulestore.tests.factories import ItemFactory

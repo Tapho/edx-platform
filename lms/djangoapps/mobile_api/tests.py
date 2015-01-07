@@ -8,7 +8,6 @@ from rest_framework.test import APITestCase
 from django.core.urlresolvers import reverse
 
 from opaque_keys.edx.keys import CourseKey
-from xmodule.modulestore.tests.factories import CourseFactory
 from courseware.tests.factories import UserFactory
 from student import auth
 from student.models import CourseEnrollment
