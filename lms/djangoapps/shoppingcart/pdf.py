@@ -3,7 +3,6 @@ Template for PDF Receipt/Invoice Generation
 """
 from PIL import Image
 from reportlab.lib import colors
-
 from django.conf import settings
 from django.utils.translation import ugettext as _
 from reportlab.pdfgen.canvas import Canvas

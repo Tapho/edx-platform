@@ -8,7 +8,7 @@ from django.conf import settings
 import ddt
 
 from student.tests.factories import UserFactory
-from shoppingcart.models import Order, OrderItem, PaidCourseRegistration
+from shoppingcart.models import Order, OrderItem
 from shoppingcart.processors.CyberSource2 import (
     processor_hash,
     process_postpay_callback,
@@ -21,7 +21,6 @@ from shoppingcart.processors.exceptions import (
     CCProcessorDataException,
     CCProcessorWrongAmountException
 )
-from xmodule.modulestore.tests.factories import CourseFactory
 
 
 @ddt.ddt
@@ -42,14 +41,12 @@ class CyberSource2Test(TestCase):
     def setUp(self):
         """ Create a user and an order. """
         self.user = UserFactory()
-        self.course = CourseFactory()
         self.order = Order.get_cart_for_user(self.user)
-        self.order_item = PaidCourseRegistration.objects.create(
+        self.order_item = OrderItem.objects.create(
             order=self.order,
             user=self.user,
             unit_cost=self.COST,
-            line_cost=self.COST,
-            course_id=self.course.id  # pylint: disable=no-member
+            line_cost=self.COST
         )
 
     def assert_dump_recorded(self, order):
@@ -121,10 +118,30 @@ class CyberSource2Test(TestCase):
         self.assertEqual(params['signature'], self._signature(params))
 
     # We patch the purchased callback because
+    # we're using the OrderItem base class, which throws an exception
+    # when item doest not have a course id associated
+    @patch.object(OrderItem, 'purchased_callback')
+    def test_process_payment_raises_exception(self, purchased_callback):  # pylint: disable=unused-argument
+        """
+        test that
+        """
+        self.order.clear()
+        OrderItem.objects.create(
+            order=self.order,
+            user=self.user,
+            unit_cost=self.COST,
+            line_cost=self.COST,
+        )
+        with self.assertRaises(Exception):
+            params = self._signed_callback_params(self.order.id, self.COST, self.COST)
+            process_postpay_callback(params)
+
+    # We patch the purchased callback because
     # (a) we're using the OrderItem base class, which doesn't implement this method, and
     # (b) we want to verify that the method gets called on success.
-    @patch.object(PaidCourseRegistration, 'purchased_callback')
-    def test_process_payment_success(self, purchased_callback):
+    @patch.object(OrderItem, 'purchased_callback')
+    @patch.object(OrderItem, 'pdf_receipt_display_name')
+    def test_process_payment_success(self, pdf_receipt_display_name, purchased_callback):  # pylint: disable=unused-argument
         # Simulate a callback from CyberSource indicating that payment was successful
         params = self._signed_callback_params(self.order.id, self.COST, self.COST)
         result = process_postpay_callback(params)
@@ -203,7 +220,8 @@ class CyberSource2Test(TestCase):
         self.assertIn(u"you have cancelled this transaction", result['error_html'])
 
     @patch.object(OrderItem, 'purchased_callback')
-    def test_process_no_credit_card_digits(self, callback):
+    @patch.object(OrderItem, 'pdf_receipt_display_name')
+    def test_process_no_credit_card_digits(self, pdf_receipt_display_name, purchased_callback):  # pylint: disable=unused-argument
         # Use a credit card number with no digits provided
         params = self._signed_callback_params(
             self.order.id, self.COST, self.COST,
@@ -240,7 +258,8 @@ class CyberSource2Test(TestCase):
         self.assertIn(u"did not return a required parameter", result['error_html'])
 
     @patch.object(OrderItem, 'purchased_callback')
-    def test_sign_then_verify_unicode(self, purchased_callback):
+    @patch.object(OrderItem, 'pdf_receipt_display_name')
+    def test_sign_then_verify_unicode(self, pdf_receipt_display_name, purchased_callback):  # pylint: disable=unused-argument
         params = self._signed_callback_params(
             self.order.id, self.COST, self.COST,
             first_name=u'\u2699'
